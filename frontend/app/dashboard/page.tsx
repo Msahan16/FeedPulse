@@ -5,11 +5,14 @@ import { useEffect, useMemo, useState } from "react";
 import {
   FeedbackCategory,
   FeedbackItem,
+  FeedbackSortBy,
   FeedbackStatus,
   Sentiment,
+  SortOrder,
   deleteFeedback,
   getFeedback,
   getSummary,
+  reanalyzeFeedback,
   updateFeedbackStatus,
 } from "@/lib/api";
 
@@ -20,6 +23,14 @@ function sentimentClass(sentiment?: Sentiment) {
   if (sentiment === "Positive") return "pill good";
   if (sentiment === "Negative") return "pill negative";
   return "pill neutral";
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export default function DashboardPage() {
@@ -33,6 +44,15 @@ export default function DashboardPage() {
   const [category, setCategory] = useState<"" | FeedbackCategory>("");
   const [status, setStatus] = useState<"" | FeedbackStatus>("");
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<FeedbackSortBy>("createdAt");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+
+  const [stats, setStats] = useState({
+    totalFeedback: 0,
+    openItems: 0,
+    averagePriority: 0,
+    mostCommonTag: "-",
+  });
 
   const [summary, setSummary] = useState<string>("");
   const [summaryDays, setSummaryDays] = useState(7);
@@ -60,12 +80,17 @@ export default function DashboardPage() {
           category: category || undefined,
           status: status || undefined,
           q: search || undefined,
+          sortBy,
+          sortOrder,
         },
         token,
       );
       setItems(result.items);
       setTotalPages(result.totalPages);
       setPage(result.page);
+      if (result.stats) {
+        setStats(result.stats);
+      }
     } catch (loadError) {
       if (loadError instanceof Error) {
         setError(loadError.message);
@@ -80,7 +105,7 @@ export default function DashboardPage() {
   useEffect(() => {
     loadData(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, category, status]);
+  }, [token, category, status, sortBy, sortOrder]);
 
   const averagePriority = useMemo(() => {
     const priorities = items.map((item) => item.ai_priority).filter((value): value is number => Boolean(value));
@@ -101,6 +126,13 @@ export default function DashboardPage() {
     if (!token) return;
 
     await deleteFeedback(id, token);
+    await loadData(page);
+  }
+
+  async function rerunAi(id: string) {
+    if (!token) return;
+
+    await reanalyzeFeedback(id, token);
     await loadData(page);
   }
 
@@ -140,7 +172,7 @@ export default function DashboardPage() {
       <section className="card" style={{ marginTop: 20 }}>
         <h3>Live Snapshot</h3>
         <p className="helper">
-          Current page items: {items.length} | Average AI priority: {averagePriority}
+          Total feedback: {stats.totalFeedback} | Open items: {stats.openItems} | Average AI priority: {stats.averagePriority || averagePriority} | Most common tag: {stats.mostCommonTag}
         </p>
       </section>
 
@@ -159,6 +191,17 @@ export default function DashboardPage() {
               {option || "All statuses"}
             </option>
           ))}
+        </select>
+
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value as FeedbackSortBy)}>
+          <option value="createdAt">Sort by date</option>
+          <option value="ai_priority">Sort by priority</option>
+          <option value="ai_sentiment">Sort by sentiment</option>
+        </select>
+
+        <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value as SortOrder)}>
+          <option value="desc">Descending</option>
+          <option value="asc">Ascending</option>
         </select>
 
         <form onSubmit={onSearchSubmit} style={{ gridColumn: "span 2", display: "flex", gap: 8 }}>
@@ -189,6 +232,7 @@ export default function DashboardPage() {
               <th>Status</th>
               <th>AI</th>
               <th>Priority</th>
+              <th>Date</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -219,8 +263,12 @@ export default function DashboardPage() {
                   <span className={sentimentClass(item.ai_sentiment)}>{item.ai_sentiment || "Pending"}</span>
                 </td>
                 <td>{item.ai_priority || "-"}</td>
+                <td>{formatDate(item.createdAt)}</td>
                 <td>
                   <div style={{ display: "flex", gap: 8 }}>
+                    <button className="button ghost" onClick={() => rerunAi(item._id)}>
+                      Reanalyze
+                    </button>
                     <button className="button danger" onClick={() => removeItem(item._id)}>
                       Delete
                     </button>

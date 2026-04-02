@@ -5,6 +5,7 @@ import {
   deleteFeedback,
   getFeedbackById,
   listFeedback,
+  reanalyzeFeedback,
   summaryFeedback,
   updateFeedback,
 } from "../controllers/feedback.controller";
@@ -31,6 +32,7 @@ export const feedbackRouter = Router();
 feedbackRouter.post("/", feedbackRateLimit, validateBody(createFeedbackSchema), asyncHandler(createFeedback));
 feedbackRouter.get("/", requireAuth, asyncHandler(listFeedback));
 feedbackRouter.get("/summary", requireAuth, asyncHandler(summaryFeedback));
+feedbackRouter.post("/:id/reanalyze", requireAuth, asyncHandler(reanalyzeFeedback));
 feedbackRouter.get("/:id", requireAuth, asyncHandler(getFeedbackById));
 feedbackRouter.patch("/:id", requireAuth, validateBody(patchFeedbackSchema), asyncHandler(updateFeedback));
 feedbackRouter.delete("/:id", requireAuth, asyncHandler(deleteFeedback));

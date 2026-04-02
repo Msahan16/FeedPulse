@@ -11,7 +11,17 @@ const FeedbackSchema = new Schema(
     category: { type: String, required: true, enum: feedbackCategories },
     status: { type: String, enum: feedbackStatuses, default: "New" },
     submitterName: { type: String, trim: true },
-    submitterEmail: { type: String, trim: true },
+    submitterEmail: {
+      type: String,
+      trim: true,
+      validate: {
+        validator(value: string | undefined) {
+          if (!value) return true;
+          return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+        },
+        message: "Submitter email must be a valid email",
+      },
+    },
     ai_category: { type: String, enum: feedbackCategories },
     ai_sentiment: { type: String, enum: sentiments },
     ai_priority: { type: Number, min: 1, max: 10 },

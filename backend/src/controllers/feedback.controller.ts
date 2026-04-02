@@ -10,6 +10,8 @@ const querySchema = z.object({
   category: z.enum(feedbackCategories).optional(),
   status: z.enum(feedbackStatuses).optional(),
   q: z.string().trim().optional(),
+  sortBy: z.enum(["createdAt", "ai_priority", "ai_sentiment"]).default("createdAt"),
+  sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });
 
 export async function createFeedback(request: Request, response: Response) {
@@ -71,11 +73,60 @@ export async function listFeedback(request: Request, response: Response) {
   }
 
   const skip = (parsed.page - 1) * parsed.pageSize;
+  const sortDirection = parsed.sortOrder === "asc" ? 1 : -1;
+  const sort: Record<string, 1 | -1> = {
+    [parsed.sortBy]: sortDirection,
+  };
 
-  const [items, total] = await Promise.all([
-    FeedbackModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(parsed.pageSize),
+  if (parsed.sortBy !== "createdAt") {
+    sort.createdAt = -1;
+  }
+
+  const [items, total, statsResult] = await Promise.all([
+    FeedbackModel.find(filter).sort(sort).skip(skip).limit(parsed.pageSize),
     FeedbackModel.countDocuments(filter),
+    FeedbackModel.aggregate([
+      { $match: filter },
+      {
+        $facet: {
+          totals: [
+            {
+              $group: {
+                _id: null,
+                totalFeedback: { $sum: 1 },
+                openItems: {
+                  $sum: {
+                    $cond: [{ $ne: ["$status", "Resolved"] }, 1, 0],
+                  },
+                },
+                avgPriorityRaw: {
+                  $avg: {
+                    $cond: [{ $ifNull: ["$ai_priority", false] }, "$ai_priority", null],
+                  },
+                },
+              },
+            },
+          ],
+          tags: [
+            { $unwind: { path: "$ai_tags", preserveNullAndEmptyArrays: false } },
+            { $group: { _id: "$ai_tags", count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 1 },
+          ],
+        },
+      },
+    ]),
   ]);
+
+  const totals = statsResult[0]?.totals?.[0];
+  const topTag = statsResult[0]?.tags?.[0]?._id;
+
+  const stats = {
+    totalFeedback: Number(totals?.totalFeedback || 0),
+    openItems: Number(totals?.openItems || 0),
+    averagePriority: totals?.avgPriorityRaw ? Number(totals.avgPriorityRaw.toFixed(1)) : 0,
+    mostCommonTag: topTag ? String(topTag) : "-",
+  };
 
   return response.status(200).json({
     success: true,
@@ -85,6 +136,7 @@ export async function listFeedback(request: Request, response: Response) {
       page: parsed.page,
       pageSize: parsed.pageSize,
       totalPages: Math.max(1, Math.ceil(total / parsed.pageSize)),
+      stats,
     },
     error: null,
     message: "Feedback list fetched",
@@ -166,5 +218,44 @@ export async function summaryFeedback(request: Request, response: Response) {
     data: { summary, periodDays: days },
     error: null,
     message: "Summary generated",
+  });
+}
+
+export async function reanalyzeFeedback(request: Request, response: Response) {
+  const item = await FeedbackModel.findById(request.params.id);
+
+  if (!item) {
+    return response.status(404).json({
+      success: false,
+      data: null,
+      error: "Not Found",
+      message: "Feedback not found",
+    });
+  }
+
+  const ai = await analyzeFeedback({
+    title: item.title,
+    description: item.description,
+    category: item.category,
+  });
+
+  const updated = await FeedbackModel.findByIdAndUpdate(
+    item._id,
+    {
+      ai_category: ai.category,
+      ai_sentiment: ai.sentiment,
+      ai_priority: ai.priority_score,
+      ai_summary: ai.summary,
+      ai_tags: ai.tags,
+      ai_processed: true,
+    },
+    { new: true },
+  );
+
+  return response.status(200).json({
+    success: true,
+    data: updated,
+    error: null,
+    message: "AI analysis refreshed",
   });
 }
