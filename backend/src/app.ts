@@ -7,9 +7,30 @@ import { feedbackRouter } from "./routes/feedback.routes";
 
 export const app = express();
 
+const allowedOrigins = new Set(
+  env.CLIENT_ORIGIN.split(",")
+    .map((value) => value.trim())
+    .filter(Boolean),
+);
+
+const localhostOriginRegex = /^https?:\/\/localhost:\d+$/;
+
 app.use(
   cors({
-    origin: env.CLIENT_ORIGIN,
+    origin: (origin, callback) => {
+      // Allow non-browser clients and same-origin requests.
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (allowedOrigins.has(origin) || localhostOriginRegex.test(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error("CORS origin not allowed"));
+    },
   }),
 );
 

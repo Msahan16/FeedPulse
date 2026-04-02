@@ -30,19 +30,34 @@ export interface PaginatedResponse<T> {
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-    },
-    cache: "no-store",
-  });
+  let response: Response;
 
-  const payload = await response.json();
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(init?.headers || {}),
+      },
+      cache: "no-store",
+    });
+  } catch {
+    throw new Error(
+      `Cannot reach API at ${API_BASE}. Make sure backend is running and CORS allows your frontend origin.`,
+    );
+  }
+
+  const raw = await response.text();
+  let payload: { success?: boolean; message?: string; data?: unknown } = {};
+
+  try {
+    payload = raw ? (JSON.parse(raw) as { success?: boolean; message?: string; data?: unknown }) : {};
+  } catch {
+    payload = {};
+  }
 
   if (!response.ok || !payload.success) {
-    throw new Error(payload.message || "Request failed");
+    throw new Error(payload.message || raw || "Request failed");
   }
 
   return payload.data as T;
