@@ -25,7 +25,16 @@ export interface PaginatedResponse<T> {
   page: number;
   pageSize: number;
   totalPages: number;
+  stats?: {
+    totalFeedback: number;
+    openItems: number;
+    averagePriority: number;
+    mostCommonTag: string;
+  };
 }
+
+export type FeedbackSortBy = "createdAt" | "ai_priority" | "ai_sentiment";
+export type SortOrder = "asc" | "desc";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
@@ -92,6 +101,13 @@ export async function getFeedback(params: Record<string, string | number | undef
   });
 
   return request<PaginatedResponse<FeedbackItem>>(`/api/feedback?${query.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function reanalyzeFeedback(id: string, token: string) {
+  return request<FeedbackItem>(`/api/feedback/${id}/reanalyze`, {
+    method: "POST",
     headers: { Authorization: `Bearer ${token}` },
   });
 }
