@@ -8,6 +8,7 @@ import {
   summaryFeedback,
   updateFeedback,
 } from "../controllers/feedback.controller";
+import { asyncHandler } from "../middleware/asyncHandler";
 import { requireAuth } from "../middleware/auth";
 import { feedbackRateLimit } from "../middleware/rateLimit";
 import { optionalEmailSchema, validateBody } from "../middleware/validate";
@@ -27,9 +28,9 @@ const patchFeedbackSchema = z.object({
 
 export const feedbackRouter = Router();
 
-feedbackRouter.post("/", feedbackRateLimit, validateBody(createFeedbackSchema), createFeedback);
-feedbackRouter.get("/", requireAuth, listFeedback);
-feedbackRouter.get("/summary", requireAuth, summaryFeedback);
-feedbackRouter.get("/:id", requireAuth, getFeedbackById);
-feedbackRouter.patch("/:id", requireAuth, validateBody(patchFeedbackSchema), updateFeedback);
-feedbackRouter.delete("/:id", requireAuth, deleteFeedback);
+feedbackRouter.post("/", feedbackRateLimit, validateBody(createFeedbackSchema), asyncHandler(createFeedback));
+feedbackRouter.get("/", requireAuth, asyncHandler(listFeedback));
+feedbackRouter.get("/summary", requireAuth, asyncHandler(summaryFeedback));
+feedbackRouter.get("/:id", requireAuth, asyncHandler(getFeedbackById));
+feedbackRouter.patch("/:id", requireAuth, validateBody(patchFeedbackSchema), asyncHandler(updateFeedback));
+feedbackRouter.delete("/:id", requireAuth, asyncHandler(deleteFeedback));

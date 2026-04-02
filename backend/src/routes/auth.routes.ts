@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { loginAdmin } from "../controllers/auth.controller";
+import { asyncHandler } from "../middleware/asyncHandler";
 import { validateBody } from "../middleware/validate";
 
 const loginSchema = z.object({
@@ -10,4 +11,4 @@ const loginSchema = z.object({
 
 export const authRouter = Router();
 
-authRouter.post("/login", validateBody(loginSchema), loginAdmin);
+authRouter.post("/login", validateBody(loginSchema), asyncHandler(loginAdmin));

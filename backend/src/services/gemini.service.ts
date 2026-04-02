@@ -12,6 +12,13 @@ type GeminiResult = {
 
 const client = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 
+const candidateModels = [
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
+  "gemini-1.5-flash-latest",
+  "gemini-1.5-flash",
+];
+
 const promptTemplate = `You are an AI assistant for product feedback analysis.
 Analyze this feedback and return strict JSON only.
 JSON shape:
@@ -29,14 +36,27 @@ export async function analyzeFeedback(input: {
   description: string;
   category: string;
 }): Promise<GeminiResult> {
-  const model = client.getGenerativeModel({ model: "gemini-1.5-flash" });
   const prompt = `${promptTemplate}\n\nTitle: ${input.title}\nCategory: ${input.category}\nDescription: ${input.description}`;
 
-  const generation = await model.generateContent(prompt);
-  const content = generation.response.text().trim();
-  const normalized = content.replace(/^```json/, "").replace(/```$/, "").trim();
+  let lastError: unknown;
+  let parsed: GeminiResult | null = null;
 
-  const parsed = JSON.parse(normalized) as GeminiResult;
+  for (const modelName of candidateModels) {
+    try {
+      const model = client.getGenerativeModel({ model: modelName });
+      const generation = await model.generateContent(prompt);
+      const content = generation.response.text().trim();
+      const normalized = content.replace(/```json|```/gi, "").trim();
+      parsed = JSON.parse(normalized) as GeminiResult;
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (!parsed) {
+    throw lastError instanceof Error ? lastError : new Error("Gemini analysis failed");
+  }
 
   const sentiment = sentiments.includes(parsed.sentiment) ? parsed.sentiment : "Neutral";
   const category = feedbackCategories.includes(parsed.category) ? parsed.category : "Other";
