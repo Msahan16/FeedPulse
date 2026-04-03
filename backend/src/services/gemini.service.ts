@@ -13,10 +13,11 @@ type GeminiResult = {
 const client = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 
 const candidateModels = [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
   "gemini-2.0-flash",
   "gemini-2.0-flash-lite",
   "gemini-1.5-flash-latest",
-  "gemini-1.5-flash",
 ];
 
 const promptTemplate = `You are an AI assistant for product feedback analysis.
@@ -50,6 +51,11 @@ export async function analyzeFeedback(input: {
       parsed = JSON.parse(normalized) as GeminiResult;
       break;
     } catch (error) {
+      // Keep trying the next model when a model is unavailable for this API version.
+      if (error instanceof Error && /not found|not supported|404/i.test(error.message)) {
+        continue;
+      }
+
       lastError = error;
     }
   }
