@@ -4,7 +4,7 @@ FeedPulse is a full-stack app for collecting product feedback and helping teams 
 
 Users can submit feedback publicly (no sign-in), while admins can log in to review, filter, reanalyze, and resolve feedback from a dashboard.
 
-![FeedPulse feedback form](https://raw.githubusercontent.com/Ksahan16/FeedPulse/a54e90834e4fca14fd0906f8d764ed11a39be282/public-feedback-form.png)
+![FeedPulse feedback form](https://raw.githubusercontent.com/Msahan16/FeedPulse/4c11f361c401e61633066f6a22f4fc9481ec5b27/public-feedback-form.png)
 
 ## Tech Stack
 
